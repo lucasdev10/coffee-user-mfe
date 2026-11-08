@@ -3,6 +3,7 @@ import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Store } from '@ngrx/store';
 import { catchError, map, of, switchMap } from 'rxjs';
 import { UserRepository } from '../repositories/user.repository';
+import { EventBusService } from '../services/event-bus.service';
 import * as UserActions from './user.actions';
 
 /**
@@ -12,6 +13,7 @@ import * as UserActions from './user.actions';
  * 1. Handle async loadProfile / updateProfile / updatePreferences via UserRepository.
  * 2. After successful mutations, dispatch the corresponding global Shell user actions
  *    so the singleton NgRx store (shared via Module Federation) stays in sync.
+ * 3. Emit custom window events via EventBusService for cross-MFE communication.
  *
  * NOTE: The Shell App provides the NgRx Store as a singleton shared dependency via
  * Module Federation. When the User MFE injects `Store`, it receives the SAME store
@@ -20,13 +22,14 @@ import * as UserActions from './user.actions';
  * Global action type strings verified from:
  *   CoffeeWorkshop/src/app/core/store/user/user.actions.ts
  *
- * Requirements: 6.3, 6.4, 10.8
+ * Requirements: 6.3, 6.4, 10.8, 11.6
  */
 @Injectable()
 export class UserEffects {
   private readonly actions$ = inject(Actions);
   private readonly repository = inject(UserRepository);
   private readonly store = inject(Store);
+  private readonly eventBus = inject(EventBusService, { optional: true });
 
   // ─── Load Profile ───────────────────────────────────────────────────────────
 
@@ -56,6 +59,8 @@ export class UserEffects {
           map((profile) => {
             // Sync to global Shell store (req 10.8)
             this.dispatchGlobalUpdateProfile(profile);
+            // Emit cross-MFE custom event (req 11.6)
+            this.emitProfileUpdatedEvent(profile);
             return UserActions.userUpdateProfileSuccess({ profile });
           }),
           catchError((error) =>
@@ -129,5 +134,26 @@ export class UserEffects {
       type: '[User] Update Preferences Success',
       preferences,
     });
+  }
+
+  /**
+   * Emit the "user:profile-updated" custom window event (req 11.6).
+   *
+   * Uses EventBusService when available (runtime Shell injection).
+   * Falls back to window.dispatchEvent directly for standalone / test environments.
+   */
+  private emitProfileUpdatedEvent(user: object): void {
+    const detail = { user } as Record<string, unknown>;
+    if (this.eventBus) {
+      this.eventBus.emit('user:profile-updated', detail, 'user');
+    } else {
+      window.dispatchEvent(
+        new CustomEvent('user:profile-updated', {
+          detail: { type: 'user:profile-updated', detail, source: 'user', timestamp: Date.now() },
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    }
   }
 }

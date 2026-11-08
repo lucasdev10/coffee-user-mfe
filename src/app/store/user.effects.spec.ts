@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { provideMockActions } from '@ngrx/effects/testing';
 import { MockStore, provideMockStore } from '@ngrx/store/testing';
 import { Observable, of, throwError } from 'rxjs';
 import { UserRepository } from '../repositories/user.repository';
+import { EventBusService } from '../services/event-bus.service';
 import { UserEffects } from './user.effects';
 import * as UserActions from './user.actions';
 import { initialUserState } from './user.state';
@@ -34,6 +35,7 @@ describe('UserEffects', () => {
   let effects: UserEffects;
   let repository: { getProfile: ReturnType<typeof vi.fn>; updateProfile: ReturnType<typeof vi.fn>; updatePreferences: ReturnType<typeof vi.fn> };
   let store: MockStore;
+  let eventBus: EventBusService;
 
   beforeEach(async () => {
     repository = {
@@ -48,11 +50,17 @@ describe('UserEffects', () => {
         provideMockActions(() => actions$),
         provideMockStore({ initialState: { user: initialUserState } }),
         { provide: UserRepository, useValue: repository },
+        EventBusService,
       ],
     }).compileComponents();
 
     effects = TestBed.inject(UserEffects);
     store = TestBed.inject(MockStore);
+    eventBus = TestBed.inject(EventBusService);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ─── loadProfile$ ──────────────────────────────────────────────────────────
@@ -122,6 +130,37 @@ describe('UserEffects', () => {
         expect(action).toEqual(
           UserActions.userUpdateProfileFailure({ error: 'Update failed' }),
         );
+        resolve();
+      });
+    });
+  });
+
+  it('should emit "user:profile-updated" custom event on successful updateProfile (req 11.6)', () => {
+    repository.updateProfile.mockReturnValue(of(MOCK_USER));
+    const emitSpy = vi.spyOn(eventBus, 'emit');
+    actions$ = of(UserActions.userUpdateProfile({ changes: { fullName: 'New Name' } }));
+
+    return new Promise<void>((resolve) => {
+      effects.updateProfile$.subscribe(() => {
+        expect(emitSpy).toHaveBeenCalledOnce();
+        expect(emitSpy).toHaveBeenCalledWith(
+          'user:profile-updated',
+          expect.objectContaining({ user: MOCK_USER }),
+          'user',
+        );
+        resolve();
+      });
+    });
+  });
+
+  it('should NOT emit "user:profile-updated" event when updateProfile fails', () => {
+    repository.updateProfile.mockReturnValue(throwError(() => ({ message: 'Update failed' })));
+    const emitSpy = vi.spyOn(eventBus, 'emit');
+    actions$ = of(UserActions.userUpdateProfile({ changes: { fullName: 'New Name' } }));
+
+    return new Promise<void>((resolve) => {
+      effects.updateProfile$.subscribe(() => {
+        expect(emitSpy).not.toHaveBeenCalled();
         resolve();
       });
     });
