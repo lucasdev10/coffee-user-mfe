@@ -1,0 +1,75 @@
+<div class="profile-container" role="region" aria-label="User profile">
+  <div class="page-header">
+    <mat-icon aria-hidden="true">account_circle</mat-icon>
+    <div>
+      <h1>My Profile</h1>
+      <p>View and update your personal information</p>
+    </div>
+  </div>
+
+  <mat-card class="profile-card">
+    <mat-card-header>
+      <mat-card-title id="profile-heading">Profile Information</mat-card-title>
+      <mat-card-subtitle>Update your full name and email address</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      @if (isSaving()) {
+        <div class="loading-overlay" role="status" aria-label="Saving profile">
+          <mat-spinner diameter="40" aria-hidden="true"></mat-spinner>
+        </div>
+      }
+
+      <form role="form" [attr.aria-labelledby]="'profile-heading'">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Full Name</mat-label>
+          <input
+            matInput
+            [formField]="profileForm.fullName"
+            placeholder="Your full name"
+            aria-required="true"
+            aria-describedby="fullName-error"
+            autocomplete="name"
+          />
+          <mat-icon matPrefix aria-hidden="true">person</mat-icon>
+          <app-form-error [control]="profileForm.fullName" id="fullName-error"></app-form-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>E-mail</mat-label>
+          <input
+            matInput
+            type="email"
+            [formField]="profileForm.email"
+            placeholder="your@email.com"
+            aria-required="true"
+            aria-describedby="email-error"
+            autocomplete="email"
+          />
+          <mat-icon matPrefix aria-hidden="true">email</mat-icon>
+          <app-form-error [control]="profileForm.email" id="email-error"></app-form-error>
+        </mat-form-field>
+
+        <div class="form-actions">
+          <button
+            mat-raised-button
+            color="primary"
+            type="button"
+            [disabled]="!canSubmit()"
+            (click)="onSubmit()"
+            aria-label="Save profile changes"
+            tabindex="0"
+          >
+            @if (isSaving()) {
+              <mat-spinner diameter="20" aria-hidden="true"></mat-spinner>
+              <span>Saving...</span>
+            } @else {
+              <mat-icon aria-hidden="true">save</mat-icon>
+              <span>Save Changes</span>
+            }
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>
