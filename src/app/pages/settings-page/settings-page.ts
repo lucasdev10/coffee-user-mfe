@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
+  OnInit,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -12,7 +13,7 @@ import { MatListModule } from '@angular/material/list';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { Store } from '@ngrx/store';
+import { UserFacade } from '../../store/user.facade';
 
 export interface IUserSettings {
   theme: 'light' | 'dark' | 'system';
@@ -38,9 +39,8 @@ export interface IUserSettings {
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
 })
-export class SettingsPageComponent {
-  // Store injected — will be wired to user state in task 8.4
-  private readonly store = inject(Store);
+export class SettingsPageComponent implements OnInit {
+  private readonly userFacade = inject(UserFacade);
   private readonly snackBar = inject(MatSnackBar);
 
   protected readonly isSaving = signal<boolean>(false);
@@ -64,6 +64,29 @@ export class SettingsPageComponent {
     { value: 'es', label: 'Español' },
   ] as const;
 
+  /** Exposed observables for template consumption. */
+  readonly isLoading$ = this.userFacade.isLoading$;
+  readonly error$ = this.userFacade.error$;
+
+  ngOnInit(): void {
+    // Pre-populate settings from the store only when a user profile is present
+    // (avoids overwriting component defaults with store initial state on fresh load)
+    this.userFacade.profile$.subscribe((profile) => {
+      if (!profile) return;
+      this.userFacade.preferences$.subscribe((prefs) => {
+        if (prefs) {
+          const currentSettings = this.settings();
+          this.settings.set({
+            theme: (prefs.theme ?? currentSettings.theme) as IUserSettings['theme'],
+            language: prefs.language ?? currentSettings.language,
+            notificationsEnabled: prefs.notifications ?? currentSettings.notificationsEnabled,
+            emailNotifications: (prefs.emailNotifications as boolean | undefined) ?? currentSettings.emailNotifications,
+          });
+        }
+      });
+    });
+  }
+
   protected setTheme(theme: IUserSettings['theme']): void {
     this.settings.update((s) => ({ ...s, theme }));
   }
@@ -83,10 +106,18 @@ export class SettingsPageComponent {
   protected onSave(): void {
     this.isSaving.set(true);
 
-    // TODO (task 8.4): dispatch saveSettings action via UserFacade
-    // this.store.dispatch(UserActions.saveSettings({ settings: this.settings() }));
+    const current = this.settings();
+    // Map to UserPreferences shape — 'system' theme maps to 'light' for the store
+    const storeTheme: 'light' | 'dark' = current.theme === 'dark' ? 'dark' : 'light';
 
-    // Simulate save — remove after task 8.4 wires this up
+    this.userFacade.updatePreferences({
+      theme: storeTheme,
+      language: current.language,
+      notifications: current.notificationsEnabled,
+      emailNotifications: current.emailNotifications,
+    });
+
+    // Show success after a short delay to allow the effect to run
     setTimeout(() => {
       this.isSaving.set(false);
       this.snackBar.open('Settings saved successfully', 'Close', { duration: 3000 });

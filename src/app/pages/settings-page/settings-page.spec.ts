@@ -1,9 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideStore } from '@ngrx/store';
+import { provideMockStore } from '@ngrx/store/testing';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { SettingsPageComponent } from './settings-page';
+import { initialUserState } from '../../store/user.state';
 
 describe('SettingsPageComponent', () => {
   let component: SettingsPageComponent;
@@ -14,7 +15,7 @@ describe('SettingsPageComponent', () => {
       imports: [SettingsPageComponent, MatSnackBarModule],
       providers: [
         provideNoopAnimations(),
-        provideStore({}),
+        provideMockStore({ initialState: { user: initialUserState } }),
       ],
     }).compileComponents();
 
